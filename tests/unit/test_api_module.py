@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 import sqlite3
+import requests
 from api_module import (
     add_users, add_banks, add_accounts, modify_user,
     delete_user, transfer_money, assign_random_discounts,
@@ -48,7 +49,8 @@ def test_validate_user_full_name():
 
 
 def test_validate_account_number():
-    assert validate_account_number("UA123456789") == "UA123456789"
+    valid_id = "ID--AB-12-CDEF5678"
+    assert validate_account_number(valid_id) == valid_id
     with pytest.raises(ValueError):
         validate_account_number("invalid")
 
@@ -105,7 +107,7 @@ def test_transfer_money_success(mock_db, mock_requests):
 
     result = transfer_money(1, 2, 100, "USD")
     assert result["status"] == "success"
-    assert mock_db.execute.call_count == 4
+    assert mock_db.execute.call_count == 5
 
 
 def test_transfer_money_insufficient_funds(mock_db):
@@ -157,14 +159,42 @@ def test_last_transactions(mock_db):
     assert len(result) == 1
 
 
-def test_db_error_handling(mock_db):
-    mock_db.execute.side_effect = sqlite3.Error("DB error")
-    result = add_users([])
+from unittest.mock import patch, MagicMock
+import sqlite3
+
+@patch("api_module.sqlite3.connect")
+def test_db_error_handling(mock_connect):
+    mock_cursor = MagicMock()
+    mock_cursor.execute.side_effect = sqlite3.Error("DB error")
+
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_connect.return_value = mock_conn
+
+    test_user = {
+        "user_full_name": "Ivan Smyk",
+        "birth_day": "2000-01-01",
+        "accounts": "UA1234567890123456"
+    }
+
+    result = add_users([test_user])
+
     assert result["status"] == "failure"
 
 
-def test_transfer_api_fallback(mock_db, mock_requests):
-    mock_db.fetchone.side_effect = [(1000, "USD"), ("EUR",)]
-    mock_requests.side_effect = Exception("API error")
+
+from unittest.mock import patch, MagicMock
+import sqlite3
+
+@patch("api_module.requests.get")
+@patch("api_module.sqlite3.connect")
+def test_transfer_api_fallback(mock_connect, mock_get):
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.side_effect = [(1000, "USD"), ("EUR",)]
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_connect.return_value = mock_conn
+    mock_get.side_effect = requests.exceptions.RequestException("API error")
+
     result = transfer_money(1, 2, 100, "USD")
     assert result["status"] == "success"
