@@ -1,0 +1,33 @@
+inherits:
+    - strictness_high
+
+
+ignore:
+  - venv
+  - tests
+  - .pytest_cache/
+
+
+output-format: grouped
+
+test-warnings: true
+doc-warnings: true
+
+autodetect: false
+
+uses:
+  - numpy
+
+pep8:
+    run: true
+    options:
+        max-line-length: 120
+
+pylint:
+    run: true
+    options:
+        max-line-length: 120
+        ignored-classes: pytest
+
+
+# prospector --profile .prospector.yaml
